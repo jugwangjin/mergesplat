@@ -1,1 +1,14 @@
 dataset
+
+mesh-splatting
+PGSR
+reference_codes
+trisplat
+GHAP/experiments
+GHAP/expeirment
+GHAP/outputs
+GHAP/old_experiments
+mini-splatting/experiment_mini
+mini-splatting/outputs
+gsplat/results
+map-anything/
