@@ -12,12 +12,11 @@ Dense init된 2DGS에서 **k-NN + image-space 그래프** 상의 edge에 photome
 
 ---
 
-## 3DGS Edge Cost (edge_cost_3dgs.py) — 질량 보존
+## 3DGS Edge Cost (edge_cost_3dgs.py) — Merge와 질량 정의 일치
 
-**파일**: `graph_merge/edge_cost_3dgs.py`. **train_merge_ghap.py**에서만 사용 (LaplacianModel, 3DGS 전용).
+**파일**: `graph_merge/edge_cost_3dgs.py`. GHAP / mini-splatting `train_merge.py`에서 사용.
 
-### L2² 목표와 “평가용 알파” vs “렌더링 알파”
-
+### L2² 목표와 “Cost–Merge 정렬 (아래 참고)” 
 - 목표: ∫(P_u + P_v − Q)² 최소화. 여기서 알파는 **밀도(질량)** 역할이므로 **1.0을 넘어가도 됨** (렌더링 opacity가 아님).
 - **질량 보존**: 병합된 가우시안 Q가 가져야 할 총 질량은 항상 원본 합과 같아야 함.
   - V_Q = V_u + V_v  
@@ -33,13 +32,10 @@ Dense init된 2DGS에서 **k-NN + image-space 그래프** 상의 edge에 photome
 
 - **V_u, V_v**: a_u × (2π)^(3/2) × vol_u 등으로 계산.
 - **Sigma_q**: moment matching (w_u×Sigma_u + w_v×Sigma_v + w_u×w_v×outer(μ_u−μ_v)); vol_q = √det(Sigma_q).
-- **V_q = V_u + V_v** (평가 시만 사용; 실제 파라미터 업데이트는 merge 단계에서 alpha compositing 등으로 처리).
+- **V_q = V_u + V_v** (전체 질량 보존. 겹친 두 P를 하나의 Q로 덮을 수 있게 함; 반쪽이면 불가).
 - **L2² 전개**: d_uu×i_uu + d_vv×i_vv + d_qq×i_qq + 2×d_uv×i_uv − 2×d_uq×i_uq − 2×d_vq×i_vq.  
   - i_ab: 3D Gaussian 내적(unnormalized), d_ab: 1 + λ²×(sh·sh) 색 항.
-- **Bloat penalty**: vol_Q / (vol_u + vol_v). 멀리 떨어진 쌍(부피 팽창) 억제.
-- **최종 cost**: `cost = l2_sq * bloat_penalty`, `cost.clamp(min=0.0)`.
-
-실제 **merge 적용** 시(예: `merge_3dgs.compute_merged_gaussians_3dgs` → `train_merge.apply_merge_to_model`)에는 α_new = α_u + α_v − α_u·α_v 등 렌더링용 alpha compositing을 쓰거나, 필요 시 1.0 클리핑을 적용하면 됨.
+- **Bloat penalty**: (vol_Q / (vol_u + vol_v))^bloat_gamma. **Size-mismatch**: (vol_max/vol_min)^size_mismatch_gamma. **Volume normalization**: cost / (vol_u + vol_v).
 
 ---
 
@@ -55,7 +51,7 @@ Dense init된 2DGS에서 **k-NN + image-space 그래프** 상의 edge에 photome
 ### 3DGS (merge_3dgs.py)
 
 - **Position / Covariance**: opacity 비율 w_u = a_u/(a_u+a_v), w_v = a_v/(a_u+a_v)로 moment matching (C_new = w_u C_u + w_v C_v + w_u w_v outer(μ_u−μ_v)); eigendecomposition → scaling(log), rotation(quat).
-- **Opacity**: α_new = α_u + α_v − α_u·α_v (렌더링용).
+- **Opacity**: 체적 밀도 보존 **α_new = (α_u·vol_u + α_v·vol_v) / (2·vol_new)**. Bloat 시 α가 줄어들어 2D alpha compositing(α_u+α_v−α_u·α_v)의 단조 증가·floaters 아티팩트를 억제. Cost의 V_q = (V_u+V_v)/2와 일치.
 - **SH**: 동일 가중치로 블렌딩. LaplacianModel 사용 시 **shape**는 opacity 가중 평균 후, effective scale 보정으로 merged["scaling"] 역산 (train_merge_ghap에서 var_approx 사용).
 
 ## Edge Cost 종류 (2DGS: edge_cost.py / edge_cost_v2)

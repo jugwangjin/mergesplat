@@ -61,7 +61,15 @@
 
 ---
 
-## 6. Cost / threshold
+## 6. Cost–Merge 질량 정의 일치 (반영됨)
+
+**이전**: Cost는 V_q = V_u + V_v (전체 질량), Merge는 체적 밀도 보존 α_new = (α_u·vol_u + α_v·vol_v)/(2·vol_new) → 실제 병합 후 질량은 “절반”. cost가 낮다고 골라 merge하면 적용 결과가 cost 가정보다 어두워지고, 학습이 밝게 보상하는 **밝기 drift** 가능.
+
+**유지**: Cost는 **V_q = V_u + V_v** 유지. 겹친 두 P를 하나의 Q로 덮을 수 있어야 하므로 반쪽은 사용하지 않음(revert). Merge만 반쪽 opacity 사용 → drift는 exposure/threshold로.
+
+---
+
+## 7. Cost / threshold
 
 **현재**:  
 - 단일 스칼라 `merge_dist_l2_thresh`로 L2² (volume-normalized + bloat + size-mismatch) cost를 자르고,  
@@ -74,7 +82,7 @@
 
 ---
 
-## 7. 그래프 degree 관리 (선택)
+## 8. 그래프 degree 관리 (선택)
 
 **현재**: merge된 노드는 “u의 이웃 ∪ v의 이웃 \ {u,v}”로 이웃이 합쳐져서 degree가 커질 수 있음. `knn_from_graph_ring` 재구성 시 각 노드당 최대 k개만 남기므로 주기적으로 정리됨.
 
@@ -86,11 +94,13 @@
 
 | 항목 | 현재 | 개선 방향 | 난이도 |
 |------|------|-----------|--------|
-| 매칭 | cost 오름차순 greedy | Min-cost max matching (Blossom 등) | 중 |
+| 매칭 | cost 오름차순 greedy | Min-cost max matching (구현됨: --merge_min_cost_max_matching, networkx) | 중 |
 | Eigh | CPU 배치 | GPU + NaN fallback 또는 배치 cap | 하 |
 | 그래프 | k-ring 재구성만 | 주기적 전체 k-NN | 하 |
 | Sibling/신규 점 보호 | 없음 | parent/created_iter 필터 | 중 |
-| Merge 후 fine-tune | 없음 | merge된 점만 N step | 중 |
+| Merge 후 fine-tune | 없음 | merge된 점만 N step (구현됨: merge_local_fine_tune_iters) | 중 |
+| Cost 질량 | V_q = V_u+V_v 유지 | 겹침 시 Q로 덮기 위해 전체 질량 필요 (반쪽이면 revert) | — |
+| Opacity 병합 | 2D compositing | 체적 밀도 보존 (구현됨, merge_3dgs) | — |
 | Threshold | 단일 고정 | iteration 스케줄 | 하 |
 
 원하면 위 항목 중 하나를 골라서 구체적인 패치 포인트(함수/라인)와 API 변경안까지 적어 줄 수 있음.
